@@ -1,0 +1,3 @@
+* text=auto eol=lf
+# Prevents merge conflicts in Ottotime files
+.ottotime merge=union

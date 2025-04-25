@@ -1,0 +1,24 @@
+/* global HEADERS */
+
+export default async function gql(query, variables) {
+	const response = await fetch(
+		'https://mogul-merch-inc.myshopify.com/api/2025-01/graphql.json',
+		{
+			method: 'POST',
+			headers: HEADERS,
+			body: `{"query":${query},"variables":${JSON.stringify(variables)}}`,
+		},
+	);
+	if (!response.ok) {
+		throw new Error(
+			`GQL error: ${response.statusText} ${await response.text()}`,
+		);
+	}
+	const json = await response.json();
+	if ('errors' in json) {
+		throw new Error(
+			'GQL error: ' + json.errors.map((e) => e.message).join(', '),
+		);
+	}
+	return json.data;
+}
