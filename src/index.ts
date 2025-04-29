@@ -1,6 +1,7 @@
 import type { Plugin } from 'vite';
 import module from './module.txt';
-import type { Expression, Node, Program } from 'estree';
+import type { Expression, Node } from 'estree';
+import type { ProgramNode } from 'rollup';
 import { find_import } from './ast';
 import MagicString from 'magic-string';
 import { walk } from 'zimmerframe';
@@ -8,21 +9,34 @@ import { generate_typescript } from './codegen';
 import { loadSchema, type LoadSchemaOptions } from '@graphql-tools/load';
 import { UrlLoader } from '@graphql-tools/url-loader';
 import type { GraphQLSchema } from 'graphql';
+import { writeFile } from 'fs/promises';
 
 interface PluginConfig {
 	/**
 	 * The place to import the gql tag from. Defaults to `$gql`.
 	 */
 	moduleId?: string;
+	/**
+	 * The URL to the GraphQL endpoint.
+	 */
+	url: string;
+	/**
+	 * Headers to send with the request.
+	 */
 	headers?: Record<string, string>;
-	schema: {
-		url: string;
-		options: Exclude<LoadSchemaOptions, 'loaders' | 'headers'>;
-	};
+	/**
+	 * Options to pass to the schema loader.
+	 */
+	schemaOptions?: Omit<LoadSchemaOptions, 'loaders' | 'headers'>;
+	/**
+	 * The file to write the generated types to.
+	 * @example "src/gql.d.ts"
+	 */
+	outFile: string;
 }
 
 export default function gql_tag_plugin(config: PluginConfig): Plugin {
-	const { moduleId = '$gql', headers = {} } = config;
+	const { moduleId = '$gql', url, outFile, headers = {} } = config;
 	if (moduleId.includes("'")) throw new Error('Invalid moduleId');
 
 	if (!('Content-Type' in headers)) {
@@ -40,11 +54,13 @@ export default function gql_tag_plugin(config: PluginConfig): Plugin {
 		},
 		load(id) {
 			if (id === '\0' + moduleId) {
-				return module.replace('HEADERS', JSON.stringify(headers));
+				return module
+					.replace('URL', JSON.stringify(url))
+					.replace('HEADERS', JSON.stringify(headers));
 			}
 		},
 		async transform(code) {
-			let ast: Program;
+			let ast: ProgramNode;
 			try {
 				ast = this.parse(code);
 			} catch (_) {
@@ -53,15 +69,21 @@ export default function gql_tag_plugin(config: PluginConfig): Plugin {
 			const import_name = find_import(ast, moduleId);
 			if (!import_name) return { code, ast };
 
-			schema_promise ??= loadSchema(config.schema.url, {
-				...config.schema.options,
+			schema_promise ??= loadSchema(config.url, {
+				...config.schemaOptions,
 				headers,
 				loaders: [new UrlLoader()],
 			});
 			const schema = await schema_promise;
 
 			const s = new MagicString(code);
-			const types = new Map<string, string>();
+			const types = new Map<
+				string,
+				{
+					variables: string;
+					return_type: string;
+				}
+			>();
 
 			walk(
 				ast as Node,
@@ -108,11 +130,21 @@ export default function gql_tag_plugin(config: PluginConfig): Plugin {
 				`declare module '${moduleId}' {\n` +
 				[...types.entries()]
 					.map(
-						([query, value]) =>
-							`export default function gql(query: ${JSON.stringify(query)}): Promise<(${value})>;`,
+						([query, { variables, return_type }]) =>
+							`	export default function gql(
+		query: ${JSON.stringify(query)},
+		variables: ${variables}
+	): Promise<(${return_type})>;`,
 					)
 					.join('\n') +
-				'\n}\n';
+				`
+	export default function gql(
+		query: string,
+		variables: unknown
+	): Promise<unknown>;
+}\n`;
+
+			writeFile(outFile, dts);
 			return {
 				code: s.toString(),
 				map: s.generateMap(),

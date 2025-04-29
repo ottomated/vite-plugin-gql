@@ -1,12 +1,11 @@
-/* global HEADERS */
 
 export default async function gql(query, variables) {
 	const response = await fetch(
-		'https://mogul-merch-inc.myshopify.com/api/2025-01/graphql.json',
+		URL,
 		{
 			method: 'POST',
 			headers: HEADERS,
-			body: `{"query":${query},"variables":${JSON.stringify(variables)}}`,
+			body: `{"query":${query},"variables":${variables ? JSON.stringify(variables) : null}}`,
 		},
 	);
 	if (!response.ok) {

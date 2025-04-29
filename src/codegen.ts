@@ -1,23 +1,22 @@
-import {
-	type EnumTypeDefinitionNode,
-	type FieldNode,
+import type {
+	GraphQLList,
+	GraphQLNonNull,
 	GraphQLSchema,
-	type InlineFragmentNode,
-	type InterfaceTypeDefinitionNode,
-	type ObjectTypeDefinitionNode,
-	parse,
-	type ScalarTypeDefinitionNode,
-	type TypeNode,
-	type UnionTypeDefinitionNode,
+	GraphQLType,
+	SelectionSetNode,
+	VariableDefinitionNode,
 } from 'graphql';
-
-const TOP_LEVEL_NODES = [
-	'ObjectTypeDefinition',
-	'InterfaceTypeDefinition',
-	'UnionTypeDefinition',
-	'ScalarTypeDefinition',
-	'EnumTypeDefinition',
-];
+import {
+	isEnumType,
+	isInterfaceType,
+	isListType,
+	isNonNullType,
+	isObjectType,
+	isScalarType,
+	isUnionType,
+	parse,
+	typeFromAST,
+} from 'graphql';
 
 const BASE_TYPES = {
 	ID: 'string',
@@ -28,48 +27,13 @@ const BASE_TYPES = {
 	String: 'string',
 } as Record<string, string>;
 
-interface Schema {
-	roots: {
-		query?: ObjectTypeDefinitionNode;
-		mutation?: ObjectTypeDefinitionNode;
-		subscription?: undefined;
-	};
-	types: Map<
-		string,
-		| ObjectTypeDefinitionNode
-		| InterfaceTypeDefinitionNode
-		| UnionTypeDefinitionNode
-		| ScalarTypeDefinitionNode
-		| EnumTypeDefinitionNode
-	>;
-}
-export function parse_schema(schema_ast: GraphQLSchema): Schema {
-	const schema: Schema = {
-		roots: {},
-		types: new Map(),
-	};
-	for (const def of schema_ast.astNode.definitions) {
-		if (!('name' in def)) continue;
-		if (def.kind === 'ObjectTypeDefinition' && def.name.value === 'QueryRoot') {
-			schema.roots.query = def;
-			continue;
-		}
-		if (def.kind === 'ObjectTypeDefinition' && def.name.value === 'Mutation') {
-			schema.roots.mutation = def;
-			continue;
-		}
-		if (!TOP_LEVEL_NODES.includes(def.kind) || !def.name) {
-			continue;
-		}
-		schema.types.set(
-			def.name.value,
-			def as unknown as ObjectTypeDefinitionNode,
-		);
-	}
-	return schema;
-}
-
-export function generate_typescript(query: string, schema: Schema): string {
+export function generate_typescript(
+	query: string,
+	schema: GraphQLSchema,
+): {
+	variables: string;
+	return_type: string;
+} {
 	const ast = parse(query, { noLocation: true });
 	if (ast.definitions.length !== 1) {
 		throw new Error('Expected a single query');
@@ -78,7 +42,7 @@ export function generate_typescript(query: string, schema: Schema): string {
 	if (definition.kind !== 'OperationDefinition') {
 		throw new Error('Expected an operation definition');
 	}
-	const root = schema.roots[definition.operation];
+	const root = schema.getRootType(definition.operation);
 	if (!root) {
 		throw new Error(`No root for ${definition.operation} on schema`);
 	}
@@ -86,110 +50,128 @@ export function generate_typescript(query: string, schema: Schema): string {
 	if (!selection || selection.kind !== 'Field') {
 		throw new Error('Expected a selection field');
 	}
-	const fn = root.fields?.find((f) => f.name.value === selection.name.value);
-	if (!fn) {
-		throw new Error(`No function for ${selection.name.value} on schema`);
+	const operation = root.getFields()[selection.name.value];
+	// .fields?.find((f) => f.name.value === selection.name.value);
+	if (!operation) {
+		throw new Error(
+			`Operation "${selection.name.value}" (${definition.operation}) not found`,
+		);
 	}
-	console.log(fn);
-	return generate_typedef(selection, fn.type, schema);
+	return {
+		variables: generate_variable_types(definition.variableDefinitions, schema),
+		return_type: generate_selected_type(selection, operation.type, schema),
+	};
+	// return generate_typedef(selection, operation.type, schema);
 }
 
-function get_type_info(type_node: TypeNode): {
-	name: string;
+function generate_variable_types(
+	variables: readonly VariableDefinitionNode[] | undefined,
+	schema: GraphQLSchema,
+): string {
+	if (!variables) return 'undefined';
+	return (
+		'{' +
+		variables?.map((v) => {
+			const type = typeFromAST(schema, v.type);
+			const typescript = type
+				? generate_selected_type({}, type, schema)
+				: 'unknown';
+
+			return `${v.variable.name.value}: ${typescript}`;
+		}) +
+		'}'
+	);
+}
+
+function get_type_info(type_node: GraphQLType): {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	type: Exclude<GraphQLType, GraphQLList<any> | GraphQLNonNull<any>>;
 	array: boolean;
 	nullable: boolean;
 } {
-	switch (type_node.kind) {
-		case 'NamedType':
-			return {
-				name: type_node.name.value,
-				array: false,
-				nullable: true,
-			};
-		case 'NonNullType': {
-			const t = get_type_info(type_node.type);
-			return {
-				name: t.name,
-				array: t.array,
-				nullable: false,
-			};
-		}
-		case 'ListType': {
-			const t = get_type_info(type_node.type);
-			return {
-				name: t.name,
-				array: true,
-				nullable: t.nullable,
-			};
-		}
-		default:
-			throw new Error(`Unknown type ${type_node.kind}`);
+	if (isListType(type_node)) {
+		const of = get_type_info(type_node.ofType);
+		return {
+			type: of.type,
+			array: true,
+			nullable: of.nullable,
+		};
 	}
+	if (isNonNullType(type_node)) {
+		const of = get_type_info(type_node.ofType);
+		return {
+			type: of.type,
+			array: of.array,
+			nullable: false,
+		};
+	}
+	return {
+		type: type_node,
+		array: false,
+		nullable: true,
+	};
 }
 
-function generate_typedef(
-	node: FieldNode | InlineFragmentNode,
-	type_node: TypeNode,
-	schema: Schema,
+function generate_selected_type(
+	node: { selectionSet?: SelectionSetNode },
+	type: GraphQLType,
+	schema: GraphQLSchema,
 ): string {
-	const type_info = get_type_info(type_node);
+	const type_info = get_type_info(type);
+	const selections = node.selectionSet?.selections ?? [];
 
-	if (type_info.name in BASE_TYPES) {
-		return BASE_TYPES[type_info.name]!;
-	}
-	const type = schema.types.get(type_info.name);
-	if (!type) {
-		throw new Error(`No type for ${type_info.name}`);
-	}
-	let obj: string;
-	switch (type.kind) {
-		case 'ObjectTypeDefinition':
-		case 'InterfaceTypeDefinition':
-			obj = '{';
-			for (const field of node.selectionSet?.selections ?? []) {
-				if (field.kind !== 'Field') throw new Error('Expected a field');
-				const type_field = type.fields?.find(
-					(f) => f.name.value === field.name.value,
-				);
-				if (!type_field) {
-					throw new Error(`No field for ${field.name.value}`);
-				}
+	let typescript: string;
 
-				obj += `${JSON.stringify(field.name.value)}: ${generate_typedef(field, type_field.type, schema)},`;
-				// get the field on the type
-				// log(`${field.name.value}: ${generate_typedef(field, type_field.type)}`);
+	if (isObjectType(type_info.type) || isInterfaceType(type_info.type)) {
+		const fields = type_info.type.getFields();
+		typescript = '{';
+		for (const field of selections) {
+			if (field.kind !== 'Field') throw new Error('Expected a field');
+			const type_field = fields[field.name.value];
+			if (!type_field) {
+				throw new Error(`No field for ${field.name.value}`);
 			}
-			obj += '}';
-			break;
-		case 'EnumTypeDefinition':
-			obj = (type.values ?? []).map((v) => `"${v.name.value}"`).join(' | ');
-			break;
-		case 'UnionTypeDefinition': {
-			const objs: string[] = [];
-			for (const field of node.selectionSet?.selections ?? []) {
-				if (field.kind !== 'InlineFragment')
-					throw new Error('Expected an inline fragment');
-				const union_member = type.types?.find(
-					(m) => m.name.value === field.typeCondition?.name.value,
-				);
-				if (!union_member)
-					throw new Error(`No member for ${field.typeCondition?.name.value}`);
-				objs.push(generate_typedef(field, union_member, schema));
-				// objs.push(generate_typedef(field, union_member));
-			}
-
-			obj = objs.map((o) => `(${o})`).join(' | ');
-			break;
+			const typescript_type = generate_selected_type(
+				field,
+				type_field.type,
+				schema,
+			);
+			typescript += `${JSON.stringify(field.name.value)}: ${typescript_type},`;
 		}
-		default:
-			throw new Error(`${type.kind} types not supported`);
+		typescript += '}';
+	} else if (isUnionType(type_info.type)) {
+		const objects: Array<string> = [];
+		for (const field of selections) {
+			if (field.kind !== 'InlineFragment')
+				throw new Error('Expected an inline fragment');
+			const union_member = type_info.type
+				.getTypes()
+				.find((t) => t.name === field.typeCondition?.name.value);
+			if (!union_member)
+				throw new Error(`No member for ${field.typeCondition?.name.value}`);
+			objects.push(`(${generate_selected_type(field, union_member, schema)})`);
+		}
+		typescript = objects.join(' | ');
+	} else if (isEnumType(type_info.type)) {
+		typescript = type_info.type
+			.getValues()
+			.map((v) => JSON.stringify(v.name))
+			.join(' | ');
+	} else if (isScalarType(type_info.type)) {
+		if (type_info.type.name in BASE_TYPES) {
+			typescript = BASE_TYPES[type_info.type.name]!;
+		} else {
+			throw new Error(`Unknown scalar ${type_info.type.name}`);
+		}
+	} else {
+		throw new Error(`Unknown type ${type_info.type}`);
 	}
 
 	if (type_info.array) {
-		obj = `Array<(${obj})>`;
+		typescript = `Array<(${typescript})>`;
 	}
 	if (type_info.nullable) {
-		obj = `(${obj}) | null`;
+		typescript = `(${typescript}) | null`;
 	}
-	return obj;
+	return typescript;
 }
