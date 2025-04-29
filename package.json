@@ -20,7 +20,7 @@
 		"lint": "eslint --cache .",
 		"build": "tsdown",
 		"dev": "tsdown --watch",
-		"test": "vitest",
+		"test": "bun test",
 		"typecheck": "tsc --noEmit",
 		"format": "prettier --cache --write .",
 		"release": "bumpp && pnpm publish",
@@ -31,26 +31,26 @@
 	},
 	"devDependencies": {
 		"@eslint/js": "^9.25.1",
+		"@types/bun": "^1.2.11",
 		"@types/estree": "^1.0.7",
-		"@types/node": "^22.14.1",
+		"@types/node": "^22.15.3",
 		"bumpp": "^10.1.0",
-		"eslint": "^9.25.0",
+		"eslint": "^9.25.1",
 		"globals": "^16.0.0",
-		"prettier": "^3.5.3",
-		"rollup": "^4.40.0",
-		"tsdown": "^0.9.1",
-		"tsx": "^4.19.3",
+		"rollup": "^4.40.1",
+		"tsdown": "^0.10.2",
+		"tsx": "^4.19.4",
 		"typescript": "^5.8.3",
-		"typescript-eslint": "^8.31.0",
-		"vite": "^6.3.3",
-		"vitest": "^3.1.1"
+		"typescript-eslint": "^8.31.1",
+		"vite": "^6.3.3"
 	},
-	"packageManager": "pnpm@10.9.0",
+	"packageManager": "pnpm@10.10.0",
 	"dependencies": {
 		"@graphql-tools/load": "^8.1.0",
 		"@graphql-tools/url-loader": "^8.0.31",
-		"graphql": "^16.10.0",
+		"graphql": "^16.11.0",
 		"magic-string": "^0.30.17",
+		"prettier": "^3.5.3",
 		"zimmerframe": "^1.1.2"
 	}
 }

@@ -5,11 +5,15 @@ import type { ProgramNode } from 'rollup';
 import { find_import } from './ast';
 import MagicString from 'magic-string';
 import { walk } from 'zimmerframe';
-import { generate_typescript } from './codegen';
+import { generate_typescript, location_to_index } from './codegen';
 import { loadSchema, type LoadSchemaOptions } from '@graphql-tools/load';
 import { UrlLoader } from '@graphql-tools/url-loader';
 import type { GraphQLSchema } from 'graphql';
-import { writeFile } from 'fs/promises';
+import { writeFile } from 'node:fs/promises';
+import { GraphQLError, stripIgnoredCharacters } from 'graphql';
+import { format } from 'prettier';
+
+type RollupNode<T> = T & { start: number; end: number };
 
 interface PluginConfig {
 	/**
@@ -33,10 +37,20 @@ interface PluginConfig {
 	 * @example "src/gql.d.ts"
 	 */
 	outFile: string;
+	/**
+	 * A map of scalar types to their typescript types, e.g. `{ ID: 'string' }`.
+	 */
+	customScalars?: Record<string, string>;
 }
 
 export default function gql_tag_plugin(config: PluginConfig): Plugin {
-	const { moduleId = '$gql', url, outFile, headers = {} } = config;
+	const {
+		moduleId = '$gql',
+		url,
+		customScalars,
+		outFile,
+		headers = {},
+	} = config;
 	if (moduleId.includes("'")) throw new Error('Invalid moduleId');
 
 	if (!('Content-Type' in headers)) {
@@ -44,9 +58,13 @@ export default function gql_tag_plugin(config: PluginConfig): Plugin {
 	}
 
 	let schema_promise: Promise<GraphQLSchema> | undefined;
+	let is_build: boolean;
 
 	return {
 		name: 'vite-plugin-gql-tag',
+		config(_, env) {
+			is_build = env.command === 'build';
+		},
 		resolveId(id) {
 			if (id === moduleId) {
 				return '\0' + moduleId;
@@ -79,72 +97,130 @@ export default function gql_tag_plugin(config: PluginConfig): Plugin {
 			const s = new MagicString(code);
 			const types = new Map<
 				string,
-				{
-					variables: string;
-					return_type: string;
-				}
+				| {
+						variables: string | null;
+						return_type: string;
+				  }
+				| {
+						error: string;
+				  }
 			>();
-
+			const throw_error = this.error.bind(this);
+			const throw_warning = this.warn.bind(this);
 			walk(
-				ast as Node,
+				ast as RollupNode<Node>,
 				{},
 				{
 					_(_, { next }) {
 						next();
 					},
-					CallExpression(node) {
-						if (node.type !== 'CallExpression') return;
-						if (node.callee.type !== 'Identifier') return;
-						if (node.callee.name !== import_name) return;
+					CallExpression(node, { next }) {
+						if (node.callee.type !== 'Identifier') return next();
+						if (node.callee.name !== import_name) return next();
 
 						const query = node.arguments[0] as
-							| (Expression & { start: number; end: number })
+							| RollupNode<Expression>
 							| undefined;
-						if (query?.type !== 'TemplateLiteral') {
-							console.log(query);
-							throw new Error(
-								'The first argument to gql must be a tagged template literal',
+						if (!query) {
+							return throw_error(
+								`${node.callee.name} requires a query argument`,
 							);
 						}
-						const query_value = query.quasis[0]?.value.raw;
-						if (typeof query_value !== 'string') {
-							throw new Error('Missing query value');
+						let query_value: string;
+						if (query.type === 'TemplateLiteral') {
+							if (query.quasis.length !== 1) {
+								return throw_error(
+									`The query argument to ${node.callee.name} can't have interpolation`,
+									query.start,
+								);
+							}
+							query_value =
+								query.quasis[0]!.value.cooked ?? query.quasis[0]!.value.raw;
+						} else if (
+							query.type === 'Literal' &&
+							typeof query.value === 'string'
+						) {
+							query_value = query.value;
+						} else {
+							return throw_error(
+								`The first argument to ${node.callee.name} must be a literal string (i.e. \`query { ... }\`)`,
+								query.start,
+							);
 						}
 
-						types.set(query_value, generate_typescript(query_value, schema));
-
-						const minified = query_value; //minify_graphql(query_value);
-
-						s.update(
-							query.start,
-							query.end,
+						let minified: string;
+						try {
+							const typescript = generate_typescript(
+								query_value,
+								schema,
+								customScalars,
+							);
+							types.set(query_value, typescript);
 							// Double stringify - one to turn it into JS, one because it's
 							// passed to a json api
-							JSON.stringify(JSON.stringify(minified)),
-						);
+							minified = JSON.stringify(
+								JSON.stringify(stripIgnoredCharacters(query_value)),
+							);
+						} catch (e) {
+							let location = query.start;
+							let message = String(e);
+							if (e instanceof GraphQLError && e.locations?.length) {
+								location =
+									location_to_index(e.locations[0]!, query_value) + query.start;
+								message = e.message;
+							}
+							if (is_build) {
+								return throw_error(message, location);
+							} else {
+								throw_warning(message, location);
+							}
+							types.set(query_value, { error: message });
+							minified = `(() => { throw new Error(${JSON.stringify(
+								message,
+							)}); })()`;
+						}
+
+						s.update(query.start, query.end, minified);
 					},
 				},
 			);
 
 			const dts =
-				`declare module '${moduleId}' {\n` +
+				`// This file was generated by vite-plugin-gql-tag
+declare module '${moduleId}' {\n` +
 				[...types.entries()]
-					.map(
-						([query, { variables, return_type }]) =>
-							`	export default function gql(
-		query: ${JSON.stringify(query)},
-		variables: ${variables}
-	): Promise<(${return_type})>;`,
-					)
+					.map(([query, typescript]) => {
+						if ('error' in typescript) {
+							return `/** @deprecated ${typescript.error} */
+							export default function gql(
+								query: ${JSON.stringify(query)},
+								variables?: any
+							): Promise<{__gql_error: ${JSON.stringify(typescript.error)}}>;`;
+						}
+						const { variables, return_type } = typescript;
+						return `export default function gql(
+							query: ${JSON.stringify(query)},
+							variables${variables === null ? '?: undefined' : `: ${variables}`}
+						): Promise<(${return_type})>;`;
+					})
 					.join('\n') +
-				`
-	export default function gql(
-		query: string,
-		variables: unknown
-	): Promise<unknown>;
-}\n`;
+				`export default function gql(
+					query: string,
+					variables?: Record<string, unknown>
+				): Promise<unknown>;
+			}\n`;
 
-			writeFile(outFile, dts);
+			format(dts, {
+				parser: 'typescript',
+				trailingComma: 'all',
+				useTabs: true,
+				singleQuote: true,
+			}).then((dts) =>
+				writeFile(
+					outFile,
+					`/* eslint-disable */\n/* prettier-ignore */\n${dts}`,
+				),
+			);
 			return {
 				code: s.toString(),
 				map: s.generateMap(),

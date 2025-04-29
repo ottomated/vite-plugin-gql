@@ -1,13 +1,12 @@
-
 export default async function gql(query, variables) {
-	const response = await fetch(
-		URL,
-		{
-			method: 'POST',
-			headers: HEADERS,
-			body: `{"query":${query},"variables":${variables ? JSON.stringify(variables) : null}}`,
-		},
-	);
+	const variables_body = variables
+		? `,"variables":${JSON.stringify(variables)}`
+		: '';
+	const response = await fetch(URL, {
+		method: 'POST',
+		headers: HEADERS,
+		body: `{"query":${query}${variables_body}}`,
+	});
 	if (!response.ok) {
 		throw new Error(
 			`GQL error: ${response.statusText} ${await response.text()}`,

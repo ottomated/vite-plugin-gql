@@ -9,8 +9,9 @@
     "preview": "vite preview"
   },
   "devDependencies": {
-    "typescript": "~5.7.2",
+    "typescript": "~5.8.3",
     "vite": "^6.3.1",
-    "vite-plugin-gql-tag": "link:.."
+    "vite-plugin-gql-tag": "link:..",
+    "vite-plugin-inspect": "^11.0.1"
   }
 }

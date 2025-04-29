@@ -1,13 +1,28 @@
 import gql from '$gql';
-
-const res = await gql(/* GraphQL */ `
-	query {
-		allFilms {
-			films {
-				title
+(async () => {
+	console.log(
+		await gql(/* GraphQL */ `
+			query {
+				allFilms {
+					films {
+						title
+						director
+					}
+				}
 			}
-		}
-	}
-`);
+		`),
+	);
 
-console.log(res);
+	const data = await gql(
+		/* GraphQL */ `
+			query ($id: ID!) {
+				starship(id: $id) {
+					name
+					id
+				}
+			}
+		`,
+		{ id: 'c3RhcnNoaXBzOjEw' },
+	);
+	console.log(data);
+})();
