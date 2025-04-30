@@ -1,3 +1,4 @@
+import './file2';
 import gql from '$gql';
 (async () => {
 	console.log(
