@@ -63,7 +63,7 @@ export default function gql_tag_plugin(config: PluginConfig): Plugin {
 	const dts_writer = new DtsWriter(moduleId, outFile);
 
 	return {
-		name: 'vite-plugin-gql-tag',
+		name: '@o7/vite-plugin-gql',
 		config(_, env) {
 			is_build = env.command === 'build';
 		},

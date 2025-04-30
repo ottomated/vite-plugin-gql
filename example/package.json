@@ -1,17 +1,17 @@
 {
-  "name": "example",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
-  },
-  "devDependencies": {
-    "typescript": "~5.8.3",
-    "vite": "^6.3.1",
-    "vite-plugin-gql-tag": "link:..",
-    "vite-plugin-inspect": "^11.0.1"
-  }
+	"name": "example",
+	"private": true,
+	"version": "0.0.0",
+	"type": "module",
+	"scripts": {
+		"dev": "vite",
+		"build": "tsc && vite build",
+		"preview": "vite preview"
+	},
+	"devDependencies": {
+		"@o7/vite-plugin-gql": "link:..",
+		"typescript": "^5.8.3",
+		"vite": "^6.3.3",
+		"vite-plugin-inspect": "^11.0.1"
+	}
 }

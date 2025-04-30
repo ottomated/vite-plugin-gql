@@ -8,15 +8,15 @@ importers:
 
   .:
     devDependencies:
-      typescript:
-        specifier: ~5.8.3
-        version: 5.8.3
-      vite:
-        specifier: ^6.3.1
-        version: 6.3.3
-      vite-plugin-gql-tag:
+      '@o7/vite-plugin-gql':
         specifier: link:..
         version: link:..
+      typescript:
+        specifier: ^5.8.3
+        version: 5.8.3
+      vite:
+        specifier: ^6.3.3
+        version: 6.3.3
       vite-plugin-inspect:
         specifier: ^11.0.1
         version: 11.0.1(vite@6.3.3)

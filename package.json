@@ -1,10 +1,16 @@
 {
-	"name": "vite-plugin-gql-tag",
-	"version": "0.0.0",
+	"name": "@o7/vite-plugin-gql",
+	"version": "0.0.1",
 	"type": "module",
 	"license": "MIT",
 	"files": [
 		"dist"
+	],
+	"keywords": [
+		"vite-plugin",
+		"graphql",
+		"gql",
+		"typescript"
 	],
 	"main": "./dist/index.js",
 	"module": "./dist/index.js",
