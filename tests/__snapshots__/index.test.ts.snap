@@ -1,0 +1,66 @@
+// Bun Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`gql 0 1`] = `
+"type In = null;
+"
+`;
+
+exports[`gql 0 2`] = `
+"type Out =
+  | {
+      list?:
+        | {
+            items?:
+              | Array<
+                  | {
+                      id: string;
+                      name: string;
+                      numbers?: Array<number> | null | undefined;
+                    }
+                  | null
+                  | undefined
+                >
+              | null
+              | undefined;
+          }
+        | null
+        | undefined;
+    }
+  | null
+  | undefined;
+"
+`;
+
+exports[`gql 1 1`] = `
+"type In = { id: string };
+"
+`;
+
+exports[`gql 1 2`] = `
+"type Out =
+  | {
+      get?:
+        | {
+            id: string;
+            name: string;
+            numbers?: Array<number> | null | undefined;
+          }
+        | null
+        | undefined;
+    }
+  | null
+  | undefined;
+"
+`;
+
+exports[`gql 2 1`] = `
+"type In = {
+  input: { name: string; numbers?: Array<number> | null | undefined };
+};
+"
+`;
+
+exports[`gql 2 2`] = `
+"type Out = { create: { id: string; name: string } } | null | undefined;
+"
+`;

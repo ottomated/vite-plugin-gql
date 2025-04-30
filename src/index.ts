@@ -1,15 +1,19 @@
 import type { Plugin } from 'vite';
 import module from './module.txt';
 import type { Expression, Node } from 'estree';
-import type { ProgramNode } from 'rollup';
+import type { PluginContext, ProgramNode } from 'rollup';
 import { find_import } from './ast';
 import MagicString from 'magic-string';
 import { walk } from 'zimmerframe';
-import { generate_typescript, location_to_index } from './codegen';
+import {
+	generate_typescript,
+	location_to_index,
+	SCALAR_TYPES,
+} from './codegen';
 import { loadSchema, type LoadSchemaOptions } from '@graphql-tools/load';
 import { UrlLoader } from '@graphql-tools/url-loader';
 import type { GraphQLSchema } from 'graphql';
-import { GraphQLError, stripIgnoredCharacters } from 'graphql';
+import { GraphQLError, isScalarType, stripIgnoredCharacters } from 'graphql';
 import { DtsWriter } from './dts-writer';
 
 type RollupNode<T> = T & { start: number; end: number };
@@ -62,6 +66,24 @@ export default function gql_tag_plugin(config: PluginConfig): Plugin {
 
 	const dts_writer = new DtsWriter(moduleId, outFile);
 
+	async function load_schema(context: PluginContext) {
+		const schema = await loadSchema(config.url, {
+			...config.schemaOptions,
+			headers,
+			loaders: [new UrlLoader()],
+		});
+		for (const [name, type] of Object.entries(schema.getTypeMap())) {
+			if (!isScalarType(type)) continue;
+			if (name in SCALAR_TYPES) continue;
+			if (config.customScalars && name in config.customScalars) continue;
+			context.warn(
+				`Scalar '${name}' is missing from config.customScalars. Consider defining it.\n\nDescription: ${type.description ?? ''}`,
+			);
+		}
+
+		return schema;
+	}
+
 	return {
 		name: '@o7/vite-plugin-gql',
 		config(_, env) {
@@ -89,11 +111,7 @@ export default function gql_tag_plugin(config: PluginConfig): Plugin {
 			const import_name = find_import(ast, moduleId);
 			if (!import_name) return { code, ast };
 
-			schema_promise ??= loadSchema(config.url, {
-				...config.schemaOptions,
-				headers,
-				loaders: [new UrlLoader()],
-			});
+			schema_promise ??= load_schema(this);
 			const schema = await schema_promise;
 
 			const s = new MagicString(code);

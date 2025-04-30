@@ -1,7 +1,5 @@
 import type {
 	ASTNode,
-	GraphQLList,
-	GraphQLNonNull,
 	GraphQLSchema,
 	GraphQLType,
 	SelectionSetNode,
@@ -11,6 +9,7 @@ import type {
 import {
 	GraphQLError,
 	isEnumType,
+	isInputObjectType,
 	isInterfaceType,
 	isListType,
 	isNonNullType,
@@ -21,13 +20,14 @@ import {
 	typeFromAST,
 } from 'graphql';
 
-const SCALAR_TYPES = {
-	ID: 'string',
-	URL: 'string',
+export const SCALAR_TYPES = {
 	Int: 'number',
 	Float: 'number',
-	Decimal: 'number',
 	String: 'string',
+	Boolean: 'boolean',
+	ID: 'string',
+	URL: 'string',
+	Decimal: 'number',
 } as Record<string, string>;
 
 export function generate_typescript(
@@ -103,16 +103,29 @@ function generate_selected_type(
 	node: ASTNode & { selectionSet?: SelectionSetNode },
 	type: GraphQLType,
 	schema: GraphQLSchema,
-
 	scalar_types: Record<string, string>,
 ): string {
-	const type_info = get_type_info(type);
+	if (isListType(type)) {
+		return `(Array<${generate_selected_type(node, type.ofType, schema, scalar_types)}>) | null | undefined`;
+	}
+	if (isNonNullType(type)) {
+		const sub_type = generate_selected_type(
+			node,
+			type.ofType,
+			schema,
+			scalar_types,
+		);
+		if (is_null_type(sub_type)) {
+			return sub_type.slice(1, -20);
+		}
+		return sub_type;
+	}
 	const selections = node.selectionSet?.selections ?? [];
 
 	let typescript: string;
 
-	if (isObjectType(type_info.type) || isInterfaceType(type_info.type)) {
-		const fields = type_info.type.getFields();
+	if (isObjectType(type) || isInterfaceType(type)) {
+		const fields = type.getFields();
 		typescript = '{';
 		for (const field of selections) {
 			if (field.kind !== 'Field')
@@ -122,7 +135,7 @@ function generate_selected_type(
 			const type_field = fields[field.name.value];
 			if (!type_field) {
 				throw new GraphQLError(
-					`Property '${field.name.value}' does not exist on type ${type_info.type.name}`,
+					`Property '${field.name.value}' does not exist on type ${type.name}`,
 					{
 						nodes: [field],
 					},
@@ -134,10 +147,10 @@ function generate_selected_type(
 				schema,
 				scalar_types,
 			);
-			typescript += `${JSON.stringify(field.name.value)}: ${typescript_type},`;
+			typescript += `${JSON.stringify(field.name.value)}${is_null_type(typescript_type) ? '?' : ''}: ${typescript_type},`;
 		}
 		typescript += '}';
-	} else if (isUnionType(type_info.type)) {
+	} else if (isUnionType(type)) {
 		const objects: Array<string> = [];
 		for (const field of selections) {
 			if (field.kind !== 'InlineFragment') {
@@ -148,12 +161,12 @@ function generate_selected_type(
 					},
 				);
 			}
-			const union_member = type_info.type
+			const union_member = type
 				.getTypes()
 				.find((t) => t.name === field.typeCondition?.name.value);
 			if (!union_member) {
 				throw new GraphQLError(
-					`Union type '${type_info.type.name}' does not contain member '${field.typeCondition?.name.value}'`,
+					`Union type '${type.name}' does not contain member '${field.typeCondition?.name.value}'`,
 					{
 						nodes: [field],
 					},
@@ -164,64 +177,46 @@ function generate_selected_type(
 			);
 		}
 		typescript = objects.join(' | ');
-	} else if (isEnumType(type_info.type)) {
-		typescript = type_info.type
+	} else if (isEnumType(type)) {
+		typescript = type
 			.getValues()
 			.map((v) => JSON.stringify(v.name))
 			.join(' | ');
-	} else if (isScalarType(type_info.type)) {
-		if (type_info.type.name in scalar_types) {
-			typescript = scalar_types[type_info.type.name]!;
+	} else if (isScalarType(type)) {
+		if (type.name in scalar_types) {
+			typescript = scalar_types[type.name]!;
 		} else {
 			throw new GraphQLError(
-				`Unknown scalar type '${type_info.type.name}' (add it to the 'customScalars' option in your vite config)`,
+				`Unknown scalar type '${type.name}' (add it to the 'customScalars' option in your vite config)`,
 				{
 					nodes: [node],
 				},
 			);
 		}
+	} else if (isInputObjectType(type)) {
+		// Select all fields on an input object
+		const fields = type.getFields();
+		typescript = '{';
+		for (const [name, field] of Object.entries(fields)) {
+			const typescript_type = generate_selected_type(
+				node,
+				field.type,
+				schema,
+				scalar_types,
+			);
+			typescript += `${JSON.stringify(name)}${is_null_type(typescript_type) ? '?' : ''}: ${typescript_type},`;
+		}
+		typescript += '}';
 	} else {
-		throw new GraphQLError(`Unknown type '${type_info.type}'`, {
+		throw new GraphQLError(`Unknown type '${type}'`, {
 			nodes: [node],
 		});
 	}
-
-	if (type_info.array) {
-		typescript = `Array<(${typescript})>`;
-	}
-	if (type_info.nullable) {
-		typescript = `(${typescript}) | null`;
-	}
-	return typescript;
+	return `(${typescript}) | null | undefined`;
 }
 
-function get_type_info(type_node: GraphQLType): {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	type: Exclude<GraphQLType, GraphQLList<any> | GraphQLNonNull<any>>;
-	array: boolean;
-	nullable: boolean;
-} {
-	if (isListType(type_node)) {
-		const of = get_type_info(type_node.ofType);
-		return {
-			type: of.type,
-			array: true,
-			nullable: of.nullable,
-		};
-	}
-	if (isNonNullType(type_node)) {
-		const of = get_type_info(type_node.ofType);
-		return {
-			type: of.type,
-			array: of.array,
-			nullable: false,
-		};
-	}
-	return {
-		type: type_node,
-		array: false,
-		nullable: true,
-	};
+function is_null_type(type: string): boolean {
+	return type.startsWith('(') && type.endsWith(') | null | undefined');
 }
 
 export function location_to_index(

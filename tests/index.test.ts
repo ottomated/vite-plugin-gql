@@ -2,46 +2,85 @@
 import { test, expect } from 'bun:test';
 import { generate_typescript } from '../src/codegen';
 import { loadSchema } from '@graphql-tools/load';
-import { UrlLoader } from '@graphql-tools/url-loader';
 import { format } from 'prettier';
 
-const schema = await loadSchema('https://swapi-graphql.netlify.app/graphql', {
-	loaders: [new UrlLoader()],
-});
-test('simple', async () => {
-	const query = /* GraphQL */ `
+const schema = await loadSchema(
+	/* GraphQL */ `
+		schema {
+			query: QueryRoot
+			mutation: Mutation
+		}
+		type QueryRoot {
+			list: ListResult
+			get(id: ID!): GetResult
+		}
+		type Mutation {
+			create(input: CreateInput!): GetResult!
+		}
+
+		input CreateInput {
+			name: String!
+			numbers: [Int!]
+		}
+
+		interface Node {
+			id: ID!
+		}
+
+		type GetResult implements Node {
+			id: ID!
+			name: String!
+			numbers: [Int!]
+		}
+
+		type ListResult {
+			items: [GetResult]
+		}
+	`,
+	{
+		loaders: [],
+	},
+);
+
+const cases = [
+	/* GraphQL */ `
 		query {
-			allFilms {
-				films {
-					title
-					director
+			list {
+				items {
+					id
+					name
+					numbers
 				}
 			}
 		}
-	`;
-	const res = generate_typescript(query, schema, undefined);
-	expect(res.variables).toBe(null);
-	const return_type = await format(res.return_type, { parser: 'typescript' });
-	expect(return_type).toBe(`({
-  allFilms:
-    { films: Array<{ title: string | null; director: string | null }> | null } |
-    null,
-}) | null;\n`);
-});
-
-test('variables', async () => {
-	const query = /* GraphQL */ `
+	`,
+	/* GraphQL */ `
 		query ($id: ID!) {
-			starship(id: $id) {
-				name
+			get(id: $id) {
 				id
+				name
+				numbers
 			}
 		}
-	`;
+	`,
+	/* GraphQL */ `
+		mutation ($input: CreateInput!) {
+			create(input: $input) {
+				id
+				name
+			}
+		}
+	`,
+];
+
+test.each(cases)('gql %#', async (query) => {
 	const res = generate_typescript(query, schema, undefined);
-	expect(res.variables).toBe(`{id: string}`);
-	const return_type = await format(res.return_type, { parser: 'typescript' });
-	expect(return_type).toBe(
-		`({ starship: { name: string | null, id: string } | null }) | null;\n`,
-	);
+	const variables = await format('type In = ' + res.variables, {
+		parser: 'typescript',
+	});
+	expect(variables).toMatchSnapshot();
+	const return_type = await format('type Out = ' + res.return_type, {
+		parser: 'typescript',
+	});
+	expect(return_type).toMatchSnapshot();
 });
