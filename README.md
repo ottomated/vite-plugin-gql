@@ -42,6 +42,11 @@ const data = await gql(/* GraphQL */ `
 
 ## Changelog
 
+### 0.0.2
+
+- Fix input object handling
+- Handle nullable types properly
+
 ### 0.0.1
 
 - Initial release
