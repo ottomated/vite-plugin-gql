@@ -27,7 +27,6 @@ export const SCALAR_TYPES = {
 	Boolean: 'boolean',
 	ID: 'string',
 	URL: 'string',
-	Decimal: 'number',
 } as Record<string, string>;
 
 export function generate_typescript(

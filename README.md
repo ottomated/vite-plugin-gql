@@ -42,6 +42,10 @@ const data = await gql(/* GraphQL */ `
 
 ## Changelog
 
+### 0.0.4
+
+- removed default Decimal scalar
+
 ### 0.0.3
 
 - removed default overload to fix typescript issues
