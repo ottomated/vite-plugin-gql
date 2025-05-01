@@ -12,6 +12,10 @@
 		"gql",
 		"typescript"
 	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/ottomated/vite-plugin-gql"
+	},
 	"main": "./dist/index.js",
 	"module": "./dist/index.js",
 	"types": "./dist/index.d.ts",
