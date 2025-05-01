@@ -66,11 +66,12 @@ export class DtsWriter {
 				): Promise<(${return_type})>;\n`;
 			}
 		}
-		dts += `export default function gql(
-				query: string,
-				variables?: Record<string, unknown>
-			): Promise<unknown>;
-		}\n`;
+		// dts += `export default function gql(
+		// 		query: string,
+		// 		variables?: Record<string, unknown>
+		// 	): Promise<unknown>;
+		// 	`;
+		dts += '}';
 
 		const formatted =
 			'/* eslint-disable */\n/* prettier-ignore */\n' +

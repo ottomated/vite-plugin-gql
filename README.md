@@ -42,6 +42,10 @@ const data = await gql(/* GraphQL */ `
 
 ## Changelog
 
+### 0.0.3
+
+- removed default overload to fix typescript issues
+
 ### 0.0.2
 
 - Fix input object handling
