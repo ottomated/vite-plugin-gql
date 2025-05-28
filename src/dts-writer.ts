@@ -2,23 +2,21 @@ import { writeFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { format } from 'prettier';
 
+// You can undo this if you want just makes more consistent code
+export type GqlTypeInfo =
+	| {
+			variables: string | null;
+			return_type: string;
+	  }
+	| {
+			error: string;
+	  };
+
 export class DtsWriter {
 	out_file: string;
 	module_id: string;
 
-	#file_map: Map<
-		string,
-		Map<
-			string,
-			| {
-					variables: string | null;
-					return_type: string;
-			  }
-			| {
-					error: string;
-			  }
-		>
-	> = new Map();
+	#file_map: Map<string, Map<string, GqlTypeInfo>> = new Map();
 
 	constructor(module_id: string, out_file: string) {
 		this.module_id = module_id;
@@ -27,10 +25,7 @@ export class DtsWriter {
 
 	update_file(
 		id: string,
-		types: Map<
-			string,
-			{ variables: string | null; return_type: string } | { error: string }
-		>,
+		types: Map<string, GqlTypeInfo>,
 	): void {
 		this.#file_map.set(id, types);
 
@@ -66,11 +61,6 @@ export class DtsWriter {
 				): Promise<(${return_type})>;\n`;
 			}
 		}
-		// dts += `export default function gql(
-		// 		query: string,
-		// 		variables?: Record<string, unknown>
-		// 	): Promise<unknown>;
-		// 	`;
 		dts += '}';
 
 		const formatted =

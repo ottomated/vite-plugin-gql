@@ -15,6 +15,7 @@ import { UrlLoader } from '@graphql-tools/url-loader';
 import type { GraphQLSchema } from 'graphql';
 import { GraphQLError, isScalarType, stripIgnoredCharacters } from 'graphql';
 import { DtsWriter } from './dts-writer';
+import { SchemaWatcher } from './schema-watcher';
 
 type RollupNode<T> = T & { start: number; end: number };
 
@@ -45,7 +46,36 @@ interface PluginConfig {
 	 * @example { ID: 'string' }
 	 */
 	customScalars?: Record<string, string>;
+	/**
+	 * The config for watching the schema for changes.
+	 */
+	watchSchema?: WatchSchemaConfig;
+
 }
+
+// This is incase you want to change to having the headers inside the watch schema function -- not implemented, but avaialble
+// TODO: add default interval and timeout values
+export type WatchSchemaConfig = {
+	/**
+	 * The URL to the GraphQL schema
+	 */
+	url: string | ((env: Record<string, string | undefined>) => string);
+	/**
+	 * amount of time between each request in milliseconds
+	 */
+	interval?: number | null;
+	/**
+	 * Timeout duration in milliseconds used to cancel the fetching of the schema.
+	 */
+	timeout?: number | null;
+	/**
+	 * An object containing the environment variables you want passed onto the api when polling for a new schema.
+	 * The keys dictate the header names. If the value is a string, the corresponding environment variable will be used
+	 * directly. If the value is a function, the current environment will be passed to your function so you can perform any,
+	 * logic you need
+	 */
+	headers?: Record<string, string | ((env: Record<string, string | undefined>) => string)> | ((env: Record<string, string | undefined>) => Record<string, string>);
+};
 
 export default function gql_tag_plugin(config: PluginConfig): Plugin {
 	const {
@@ -53,6 +83,7 @@ export default function gql_tag_plugin(config: PluginConfig): Plugin {
 		url,
 		customScalars,
 		outFile,
+		watchSchema,
 		headers = {},
 	} = config;
 	if (moduleId.includes("'")) throw new Error('Invalid moduleId');
@@ -63,11 +94,12 @@ export default function gql_tag_plugin(config: PluginConfig): Plugin {
 
 	let schema_promise: Promise<GraphQLSchema> | undefined;
 	let is_build: boolean;
+	let schema_watcher: SchemaWatcher | undefined;
 
 	const dts_writer = new DtsWriter(moduleId, outFile);
 
 	async function load_schema(context: PluginContext) {
-		const schema = await loadSchema(config.url, {
+		const schema = await loadSchema(config.watchSchema?.url ?? config.url, {
 			...config.schemaOptions,
 			headers,
 			loaders: [new UrlLoader()],
@@ -84,10 +116,41 @@ export default function gql_tag_plugin(config: PluginConfig): Plugin {
 		return schema;
 	}
 
+	function handle_schema_change(new_schema: GraphQLSchema, context: PluginContext) {
+		schema_promise = Promise.resolve(new_schema);
+		
+		if (!is_build) {
+			context.info('GraphQL schema updated');
+		}
+	}
+
+	function handle_schema_error(error: Error, context: PluginContext) {
+		if (!is_build) {
+			context.warn(`Schema polling error: ${error.message}`);
+		}
+	}
+
 	return {
 		name: '@o7/vite-plugin-gql',
 		config(_, env) {
 			is_build = env.command === 'build';
+		},
+		buildStart() {
+			if (!is_build && watchSchema) {
+				schema_watcher = new SchemaWatcher(
+					watchSchema,
+					config.schemaOptions,
+					(new_schema) => handle_schema_change(new_schema, this),
+					(error) => handle_schema_error(error, this)
+				);
+				schema_watcher.startPolling();
+			}
+		},
+		buildEnd() {
+			if (schema_watcher) {
+				schema_watcher.stopPolling();
+				schema_watcher = undefined;
+			}
 		},
 		resolveId(id) {
 			if (id === moduleId) {
@@ -97,7 +160,8 @@ export default function gql_tag_plugin(config: PluginConfig): Plugin {
 		load(id) {
 			if (id === '\0' + moduleId) {
 				return module
-					.replace('URL', JSON.stringify(url))
+				// This can change aswell I just didnt want to disable the regular url option
+					.replace('URL', JSON.stringify(watchSchema?.url ?? url))
 					.replace('HEADERS', JSON.stringify(headers));
 			}
 		},
@@ -111,7 +175,11 @@ export default function gql_tag_plugin(config: PluginConfig): Plugin {
 			const import_name = find_import(ast, moduleId);
 			if (!import_name) return { code, ast };
 
-			schema_promise ??= load_schema(this);
+			if (schema_watcher && schema_watcher.getCurrentSchema()) {
+				schema_promise = Promise.resolve(schema_watcher.getCurrentSchema()!);
+			} else {
+				schema_promise ??= load_schema(this);
+			}
 			const schema = await schema_promise;
 
 			const s = new MagicString(code);
