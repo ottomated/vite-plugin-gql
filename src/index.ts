@@ -116,15 +116,15 @@ export default function gql_tag_plugin(config: PluginConfig): Plugin {
 		return schema;
 	}
 
-	function handleSchemaChange(newSchema: GraphQLSchema, context: PluginContext) {
-		schema_promise = Promise.resolve(newSchema);
+	function handle_schema_change(new_schema: GraphQLSchema, context: PluginContext) {
+		schema_promise = Promise.resolve(new_schema);
 		
 		if (!is_build) {
 			context.info('GraphQL schema updated');
 		}
 	}
 
-	function handleSchemaError(error: Error, context: PluginContext) {
+	function handle_schema_error(error: Error, context: PluginContext) {
 		if (!is_build) {
 			context.warn(`Schema polling error: ${error.message}`);
 		}
@@ -140,8 +140,8 @@ export default function gql_tag_plugin(config: PluginConfig): Plugin {
 				schema_watcher = new SchemaWatcher(
 					watchSchema,
 					config.schemaOptions,
-					(newSchema) => handleSchemaChange(newSchema, this),
-					(error) => handleSchemaError(error, this)
+					(new_schema) => handle_schema_change(new_schema, this),
+					(error) => handle_schema_error(error, this)
 				);
 				schema_watcher.startPolling();
 			}

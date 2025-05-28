@@ -13,14 +13,14 @@ export class SchemaWatcher {
 
 	constructor(
 		config: WatchSchemaConfig,
-		schemaOptions: Omit<LoadSchemaOptions, 'loaders' | 'headers'> | undefined,
-		onSchemaChange: (schema: GraphQLSchema) => void,
-		onError: (error: Error) => void
+		schema_options: Omit<LoadSchemaOptions, 'loaders' | 'headers'> | undefined,
+		on_schema_change: (schema: GraphQLSchema) => void,
+		on_error: (error: Error) => void
 	) {
 		this.config = config;
-		this.schemaOptions = schemaOptions;
-		this.onSchemaChange = onSchemaChange;
-		this.onError = onError;
+		this.schemaOptions = schema_options;
+		this.onSchemaChange = on_schema_change;
+		this.onError = on_error;
 	}
 
 	async startPolling(): Promise<void> {
@@ -72,7 +72,7 @@ export class SchemaWatcher {
 		}
 
 		const controller = new AbortController();
-		const timeoutId = this.config.timeout 
+		const timeout_id = this.config.timeout 
 			? setTimeout(() => controller.abort(), this.config.timeout)
 			: null;
 
@@ -86,8 +86,8 @@ export class SchemaWatcher {
 			this.currentSchema = schema;
 			this.onSchemaChange(schema);
 		} finally {
-			if (timeoutId) {
-				clearTimeout(timeoutId);
+			if (timeout_id) {
+				clearTimeout(timeout_id);
 			}
 		}
 	}
