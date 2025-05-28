@@ -53,7 +53,7 @@ interface PluginConfig {
 
 }
 
-// This is incase you want to change to having the headers inside the watch schema function
+// This is incase you want to change to having the headers inside the watch schema function -- not implemented, but avaialble
 // TODO: add default interval and timeout values
 export type WatchSchemaConfig = {
 	/**
