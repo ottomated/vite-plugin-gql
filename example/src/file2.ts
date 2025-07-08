@@ -11,4 +11,15 @@ import gql from '$gql';
 			}
 		`),
 	);
+	await gql(
+		/* GraphQL */ `
+			query ($id: ID!) {
+				starship(id: $id) {
+					name
+					id
+				}
+			}
+		`,
+		{ id: 'c3RhcnNoaXBzOjEw' },
+	);
 })();

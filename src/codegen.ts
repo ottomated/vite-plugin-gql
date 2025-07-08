@@ -29,14 +29,16 @@ export const SCALAR_TYPES = {
 	URL: 'string',
 } as Record<string, string>;
 
+export type TypescriptDetails = {
+	variables: string | null;
+	return_type: string;
+};
+
 export function generate_typescript(
 	query: string,
 	schema: GraphQLSchema,
 	custom_scalars: Record<string, string> | undefined,
-): {
-	variables: string | null;
-	return_type: string;
-} {
+): TypescriptDetails {
 	const ast = parse(query);
 	if (ast.definitions.length > 1) {
 		throw new GraphQLError(
@@ -75,7 +77,6 @@ export function generate_typescript(
 		),
 		return_type: generate_selected_type(definition, root, schema, scalar_types),
 	};
-	// return generate_typedef(selection, operation.type, schema);
 }
 
 function generate_variable_types(

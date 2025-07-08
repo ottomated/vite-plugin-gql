@@ -5,6 +5,6 @@ export default defineConfig({
 	target: 'node20.18',
 	clean: true,
 	dts: true,
-	external: ['node:fs/promises', 'node:path'],
+	external: ['node:fs/promises', 'rollup', 'node:path'],
 	platform: 'neutral',
 });

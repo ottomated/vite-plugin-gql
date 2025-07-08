@@ -1,22 +1,14 @@
 import type { Plugin } from 'vite';
 import module from './module.txt';
-import type { Expression, Node } from 'estree';
-import type { PluginContext, ProgramNode } from 'rollup';
-import { find_import } from './ast';
+import type { ProgramNode } from 'rollup';
+import { find_import, walk_ast } from './ast';
 import MagicString from 'magic-string';
-import { walk } from 'zimmerframe';
-import {
-	generate_typescript,
-	location_to_index,
-	SCALAR_TYPES,
-} from './codegen';
+import { SCALAR_TYPES } from './codegen';
 import { loadSchema, type LoadSchemaOptions } from '@graphql-tools/load';
 import { UrlLoader } from '@graphql-tools/url-loader';
-import type { GraphQLSchema } from 'graphql';
-import { GraphQLError, isScalarType, stripIgnoredCharacters } from 'graphql';
-import { DtsWriter } from './dts-writer';
-
-type RollupNode<T> = T & { start: number; end: number };
+import { GraphQLSchema } from 'graphql';
+import { isScalarType } from 'graphql';
+import { DtsWatcher } from './dts-watcher';
 
 interface PluginConfig {
 	/**
@@ -61,33 +53,43 @@ export default function gql_tag_plugin(config: PluginConfig): Plugin {
 		headers['Content-Type'] = 'application/json';
 	}
 
-	let schema_promise: Promise<GraphQLSchema> | undefined;
+	let resolve_schema: (schema: GraphQLSchema) => void;
+	const schema_promise = new Promise<GraphQLSchema>((resolve) => {
+		resolve_schema = resolve;
+	});
 	let is_build: boolean;
 
-	const dts_writer = new DtsWriter(moduleId, outFile);
-
-	async function load_schema(context: PluginContext) {
-		const schema = await loadSchema(config.url, {
-			...config.schemaOptions,
-			headers,
-			loaders: [new UrlLoader()],
-		});
-		for (const [name, type] of Object.entries(schema.getTypeMap())) {
-			if (!isScalarType(type)) continue;
-			if (name in SCALAR_TYPES) continue;
-			if (config.customScalars && name in config.customScalars) continue;
-			context.warn(
-				`Scalar '${name}' is missing from config.customScalars. Consider defining it.\n\nDescription: ${type.description ?? ''}`,
-			);
-		}
-
-		return schema;
-	}
+	let dts_watcher: DtsWatcher | undefined;
 
 	return {
 		name: '@o7/vite-plugin-gql',
 		config(_, env) {
 			is_build = env.command === 'build';
+			if (!is_build) {
+				dts_watcher = new DtsWatcher(
+					moduleId,
+					outFile,
+					schema_promise,
+					customScalars,
+				);
+			}
+		},
+		buildStart() {
+			loadSchema(config.url, {
+				...config.schemaOptions,
+				headers,
+				loaders: [new UrlLoader()],
+			}).then((schema) => {
+				for (const [name, type] of Object.entries(schema.getTypeMap())) {
+					if (!isScalarType(type)) continue;
+					if (name in SCALAR_TYPES) continue;
+					if (config.customScalars && name in config.customScalars) continue;
+					this.warn(
+						`Scalar '${name}' is missing from config.customScalars. Consider defining it.\n\nDescription: ${type.description ?? ''}`,
+					);
+				}
+				resolve_schema(schema);
+			});
 		},
 		resolveId(id) {
 			if (id === moduleId) {
@@ -111,101 +113,22 @@ export default function gql_tag_plugin(config: PluginConfig): Plugin {
 			const import_name = find_import(ast, moduleId);
 			if (!import_name) return { code, ast };
 
-			schema_promise ??= load_schema(this);
 			const schema = await schema_promise;
 
 			const s = new MagicString(code);
-			const types = new Map<
-				string,
-				| {
-						variables: string | null;
-						return_type: string;
-				  }
-				| {
-						error: string;
-				  }
-			>();
-			const throw_error = this.error.bind(this);
-			const throw_warning = this.warn.bind(this);
-			walk(
-				ast as RollupNode<Node>,
-				{},
+			const types = walk_ast(
 				{
-					_(_, { next }) {
-						next();
-					},
-					CallExpression(node, { next }) {
-						if (node.callee.type !== 'Identifier') return next();
-						if (node.callee.name !== import_name) return next();
-
-						const query = node.arguments[0] as
-							| RollupNode<Expression>
-							| undefined;
-						if (!query) {
-							return throw_error(
-								`${node.callee.name} requires a query argument`,
-							);
-						}
-						let query_value: string;
-						if (query.type === 'TemplateLiteral') {
-							if (query.quasis.length !== 1) {
-								return throw_error(
-									`The query argument to ${node.callee.name} can't have interpolation`,
-									query.start,
-								);
-							}
-							query_value =
-								query.quasis[0]!.value.cooked ?? query.quasis[0]!.value.raw;
-						} else if (
-							query.type === 'Literal' &&
-							typeof query.value === 'string'
-						) {
-							query_value = query.value;
-						} else {
-							return throw_error(
-								`The first argument to ${node.callee.name} must be a literal string (i.e. \`query { ... }\`)`,
-								query.start,
-							);
-						}
-
-						let minified: string;
-						try {
-							const typescript = generate_typescript(
-								query_value,
-								schema,
-								customScalars,
-							);
-							types.set(query_value, typescript);
-							// Double stringify - one to turn it into JS, one because it's
-							// passed to a json api
-							minified = JSON.stringify(
-								JSON.stringify(stripIgnoredCharacters(query_value)),
-							);
-						} catch (e) {
-							let location = query.start;
-							let message = String(e);
-							if (e instanceof GraphQLError && e.locations?.length) {
-								location =
-									location_to_index(e.locations[0]!, query_value) + query.start;
-								message = e.message;
-							}
-							if (is_build) {
-								return throw_error(message, location);
-							} else {
-								throw_warning(message, location);
-							}
-							types.set(query_value, { error: message });
-							minified = `(() => { throw new Error(${JSON.stringify(
-								message,
-							)}); })()`;
-						}
-
-						s.update(query.start, query.end, minified);
-					},
+					ast,
+					schema,
+					custom_scalars: customScalars,
+					import_name,
+					throw_gql_errors: is_build,
+					magic_string: s,
 				},
+				this,
 			);
 
-			dts_writer.update_file(id, types);
+			dts_watcher?.update_file(id, types);
 
 			return {
 				code: s.toString(),
