@@ -42,6 +42,11 @@ const data = await gql(/* GraphQL */ `
 
 ## Changelog
 
+### 0.1.0
+
+- Added a file watcher to automatically regenerate types, even before vite transforms the file
+- BREAKING: Doesn't throw GQL "errors" anymore, instead returns them
+
 ### 0.0.4
 
 - removed default Decimal scalar
