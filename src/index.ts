@@ -1,5 +1,5 @@
 import type { Plugin } from 'vite';
-import module from './module.txt';
+import module from './module.js?raw';
 import type { ProgramNode } from 'rollup';
 import { find_import, walk_ast } from './ast';
 import MagicString from 'magic-string';
@@ -99,8 +99,8 @@ export default function gql_tag_plugin(config: PluginConfig): Plugin {
 		load(id) {
 			if (id === '\0' + moduleId) {
 				return module
-					.replace('URL', JSON.stringify(url))
-					.replace('HEADERS', JSON.stringify(headers));
+					.replace('GQL_URL', JSON.stringify(url))
+					.replace('GQL_HEADERS', JSON.stringify(headers));
 			}
 		},
 		async transform(code, id) {

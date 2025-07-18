@@ -1,10 +1,12 @@
+/* global GQL_URL, GQL_HEADERS */
+
 export default async function gql(query, variables) {
 	const variables_body = variables
 		? `,"variables":${JSON.stringify(variables)}`
 		: '';
-	const response = await fetch(URL, {
+	const response = await fetch(GQL_URL, {
 		method: 'POST',
-		headers: HEADERS,
+		headers: GQL_HEADERS,
 		body: `{"query":${query}${variables_body}}`,
 	});
 	if (!response.ok) {
@@ -12,11 +14,5 @@ export default async function gql(query, variables) {
 			`GQL error: ${response.statusText} ${await response.text()}`,
 		);
 	}
-	const json = await response.json();
-	if ('errors' in json) {
-		throw new Error(
-			'GQL error: ' + json.errors.map((e) => e.message).join(', '),
-		);
-	}
-	return json.data;
+	return response.json();
 }
