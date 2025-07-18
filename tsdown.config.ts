@@ -1,5 +1,4 @@
 import { defineConfig } from 'tsdown';
-import { resolve } from 'node:path';
 import { readFile } from 'node:fs/promises';
 
 const RAW_PREFIX = '\0raw:';
@@ -18,15 +17,11 @@ export default defineConfig({
 				filter: {
 					id: /\?raw$/,
 				},
-				handler(id, importer) {
+				async handler(id, importer) {
 					if (!id.endsWith('?raw')) return;
-					id = id.slice(0, -4);
-
-					if (importer && id.startsWith('.')) {
-						return RAW_PREFIX + resolve(importer, '..', id);
-					} else {
-						return RAW_PREFIX + resolve(process.cwd(), id);
-					}
+					const resolved = await this.resolve(id.slice(0, -4), importer);
+					if (!resolved) return null;
+					return RAW_PREFIX + resolved.id;
 				},
 			},
 			load: {
