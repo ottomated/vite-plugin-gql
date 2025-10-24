@@ -42,6 +42,10 @@ const data = await gql(/* GraphQL */ `
 
 ## Changelog
 
+### 0.1.2
+
+- support aliased fields
+
 ### 0.1.0
 
 - Added a file watcher to automatically regenerate types, even before vite transforms the file
