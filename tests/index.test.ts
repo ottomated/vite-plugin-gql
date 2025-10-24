@@ -71,6 +71,14 @@ const cases = [
 			}
 		}
 	`,
+	/* GraphQL */ `
+		query ($id: ID!) {
+			get(id: $id) {
+				id
+				renamed: name
+			}
+		}
+	`,
 ];
 
 test.each(cases)('gql %#', async (query) => {

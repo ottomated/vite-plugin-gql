@@ -147,7 +147,8 @@ function generate_selected_type(
 				schema,
 				scalar_types,
 			);
-			typescript += `${JSON.stringify(field.name.value)}${is_null_type(typescript_type) ? '?' : ''}: ${typescript_type},`;
+			const name = field.alias?.value ?? field.name.value;
+			typescript += `${JSON.stringify(name)}${is_null_type(typescript_type) ? '?' : ''}: ${typescript_type},`;
 		}
 		typescript += '}';
 	} else if (isUnionType(type)) {
