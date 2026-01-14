@@ -38,9 +38,29 @@ const data = await gql(/* GraphQL */ `
   }
 `);
 // ^ Automatically inferred as { object: { id: string, name: string } }
+
+// Advanced usage:
+const data = await gql(/* GraphQL */ `
+  query {
+    object {
+      id
+      name
+    }
+  }
+`).with({
+	url: 
+	headers: {
+		Authorization: 'abc123'
+	}
+});
+
 ```
 
 ## Changelog
+
+### 0.1.3
+
+- Add `.with()` to set per-query overrides
 
 ### 0.1.2
 

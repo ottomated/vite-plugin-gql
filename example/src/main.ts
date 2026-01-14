@@ -14,7 +14,7 @@ import gql from '$gql';
 		`),
 	);
 
-	const data = await gql(
+	const req = await gql(
 		/* GraphQL */ `
 			query ($id: ID!) {
 				starship(id: $id) {
@@ -25,5 +25,5 @@ import gql from '$gql';
 		`,
 		{ id: 'c3RhcnNoaXBzOjEw' },
 	);
-	console.log(data);
+	console.log(req);
 })();

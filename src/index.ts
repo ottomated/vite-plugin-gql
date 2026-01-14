@@ -99,8 +99,8 @@ export default function gql_tag_plugin(config: PluginConfig): Plugin {
 		load(id) {
 			if (id === '\0' + moduleId) {
 				return module
-					.replaceAll('GQL_URL', JSON.stringify(url))
-					.replaceAll('GQL_HEADERS', JSON.stringify(headers));
+					.replace('GQL_URL', JSON.stringify(url))
+					.replace('GQL_HEADERS', JSON.stringify(headers));
 			}
 		},
 		async transform(code, id) {
