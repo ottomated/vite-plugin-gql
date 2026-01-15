@@ -42,7 +42,6 @@ export default function gql(query, variables) {
 			return promise;
 		},
 	});
-	console.log('a', promise);
 	return promise;
 }
 
