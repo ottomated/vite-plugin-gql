@@ -14,6 +14,12 @@ export default ts.config(
 		},
 	},
 	{
+		ignores: ['example/**'],
+		rules: {
+			'no-console': 'error',
+		},
+	},
+	{
 		rules: {
 			'@typescript-eslint/no-unused-vars': [
 				'warn',

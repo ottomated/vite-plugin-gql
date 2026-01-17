@@ -53,10 +53,15 @@ const data = await gql(/* GraphQL */ `
 		Authorization: 'abc123'
 	}
 });
-
 ```
 
 ## Changelog
+
+### 0.2.0
+
+- Add `automaticallyGenerateTypes` options
+- Add `gql-typegen` bin to manually generate types
+- Fix typegen not working in files with typescript-only syntax
 
 ### 0.1.3
 

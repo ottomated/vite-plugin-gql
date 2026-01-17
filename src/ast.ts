@@ -9,8 +9,12 @@ import type { ProgramNode, TransformPluginContext } from 'rollup';
 import { walk } from 'zimmerframe';
 import type { TypeMap } from './dts-watcher';
 import { generate_typescript, location_to_index } from './codegen';
+import type { Program } from 'oxc-parser';
 
-export function find_import(ast: Node, module_id: string): string | null {
+export function find_import(
+	ast: Node | Program,
+	module_id: string,
+): string | null {
 	let import_name: string | null = null;
 	walk(
 		ast,
@@ -41,7 +45,7 @@ export function walk_ast(
 		throw_gql_errors,
 		magic_string,
 	}: {
-		ast: ProgramNode;
+		ast: ProgramNode | Program;
 		import_name: string;
 		schema: GraphQLSchema;
 		custom_scalars: Record<string, string> | undefined;

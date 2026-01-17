@@ -4,11 +4,11 @@ import { readFile } from 'node:fs/promises';
 const RAW_PREFIX = '\0raw:';
 
 export default defineConfig({
-	entry: ['./src/index.ts'],
+	entry: ['./src/index.ts', './src/bin.ts'],
 	target: 'node20.18',
 	clean: true,
 	dts: true,
-	external: ['node:fs/promises', 'rollup', 'node:path'],
+	external: ['node:fs/promises', 'node:os', 'node:util', 'rollup', 'node:path'],
 	platform: 'neutral',
 	plugins: [
 		{

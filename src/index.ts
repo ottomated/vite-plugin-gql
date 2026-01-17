@@ -3,14 +3,13 @@ import module from './module.js?raw';
 import type { ProgramNode } from 'rollup';
 import { find_import, walk_ast } from './ast';
 import MagicString from 'magic-string';
-import { SCALAR_TYPES } from './codegen';
-import { loadSchema, type LoadSchemaOptions } from '@graphql-tools/load';
-import { UrlLoader } from '@graphql-tools/url-loader';
+import { type LoadSchemaOptions } from '@graphql-tools/load';
 import { GraphQLSchema } from 'graphql';
-import { isScalarType } from 'graphql';
-import { DtsWatcher } from './dts-watcher';
+import { DtsWatcher, load_schema } from './dts-watcher';
+import { relative } from 'node:path';
+import type { GlobalGenerator } from './bin';
 
-interface PluginConfig {
+export interface PluginConfig {
 	/**
 	 * The place to import the gql tag from. Defaults to `$gql`.
 	 */
@@ -37,20 +36,35 @@ interface PluginConfig {
 	 * @example { ID: 'string' }
 	 */
 	customScalars?: Record<string, string>;
+	/**
+	 * Whether to automatically generate types whenever a file changes.
+	 * If disabled, types can be generated from the command line with the included `gql-typegen` script.
+	 * @default {true}
+	 */
+	automaticallyGenerateTypes?: boolean;
 }
 
-export default function gql_tag_plugin(config: PluginConfig): Plugin {
-	const {
-		moduleId = '$gql',
-		url,
-		customScalars,
-		outFile,
-		headers = {},
-	} = config;
-	if (moduleId.includes("'")) throw new Error('Invalid moduleId');
+type Global = typeof globalThis & {
+	__gql_generator: GlobalGenerator;
+};
 
-	if (!('Content-Type' in headers)) {
-		headers['Content-Type'] = 'application/json';
+export default function gql_tag_plugin(config: PluginConfig): Plugin {
+	config.moduleId ??= '$gql';
+	config.headers ??= {};
+	config.automaticallyGenerateTypes ??= true;
+	if (config.moduleId.includes("'")) throw new Error('Invalid moduleId');
+
+	if (!('Content-Type' in config.headers)) {
+		config.headers['Content-Type'] = 'application/json';
+	}
+	if (
+		'__gql_generator' in globalThis &&
+		typeof (globalThis as Global).__gql_generator === 'symbol'
+	) {
+		(globalThis as Global).__gql_generator = {
+			config,
+			files: new Map(),
+		};
 	}
 
 	let resolve_schema: (schema: GraphQLSchema) => void;
@@ -65,42 +79,28 @@ export default function gql_tag_plugin(config: PluginConfig): Plugin {
 		name: '@o7/vite-plugin-gql',
 		config(_, env) {
 			is_build = env.command === 'build';
-			if (!is_build) {
+			if (!is_build && config.automaticallyGenerateTypes) {
 				dts_watcher = new DtsWatcher(
-					moduleId,
-					outFile,
+					config.moduleId!,
+					config.outFile,
 					schema_promise,
-					customScalars,
+					config.customScalars,
 				);
 			}
 		},
 		buildStart() {
-			loadSchema(config.url, {
-				...config.schemaOptions,
-				headers,
-				loaders: [new UrlLoader()],
-			}).then((schema) => {
-				for (const [name, type] of Object.entries(schema.getTypeMap())) {
-					if (!isScalarType(type)) continue;
-					if (name in SCALAR_TYPES) continue;
-					if (config.customScalars && name in config.customScalars) continue;
-					this.warn(
-						`Scalar '${name}' is missing from config.customScalars. Consider defining it.\n\nDescription: ${type.description ?? ''}`,
-					);
-				}
-				resolve_schema(schema);
-			});
+			load_schema(config, this.warn).then(resolve_schema);
 		},
 		resolveId(id) {
-			if (id === moduleId) {
-				return '\0' + moduleId;
+			if (id === config.moduleId) {
+				return '\0' + config.moduleId;
 			}
 		},
 		load(id) {
-			if (id === '\0' + moduleId) {
+			if (id === '\0' + config.moduleId) {
 				return module
-					.replace('GQL_URL', JSON.stringify(url))
-					.replace('GQL_HEADERS', JSON.stringify(headers));
+					.replace('GQL_URL', JSON.stringify(config.url))
+					.replace('GQL_HEADERS', JSON.stringify(config.headers));
 			}
 		},
 		async transform(code, id) {
@@ -110,7 +110,7 @@ export default function gql_tag_plugin(config: PluginConfig): Plugin {
 			} catch (_) {
 				return;
 			}
-			const import_name = find_import(ast, moduleId);
+			const import_name = find_import(ast, config.moduleId!);
 			if (!import_name) return { code, ast };
 
 			const schema = await schema_promise;
@@ -120,7 +120,7 @@ export default function gql_tag_plugin(config: PluginConfig): Plugin {
 				{
 					ast,
 					schema,
-					custom_scalars: customScalars,
+					custom_scalars: config.customScalars,
 					import_name,
 					throw_gql_errors: is_build,
 					magic_string: s,
@@ -129,6 +129,16 @@ export default function gql_tag_plugin(config: PluginConfig): Plugin {
 			);
 
 			dts_watcher?.update_file(id, types);
+
+			if ('__gql_generator' in globalThis) {
+				(globalThis as Global).__gql_generator.files.set(
+					relative(process.cwd(), id),
+					{
+						ast,
+						import_name,
+					},
+				);
+			}
 
 			return {
 				code: s.toString(),
