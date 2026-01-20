@@ -173,11 +173,7 @@ Options:
 		file_map.set(file, types);
 	}
 
-	await write_dts_file(
-		file_map,
-		generator.config.moduleId!,
-		args['out-file'] ?? generator.config.outFile,
-	);
+	await write_dts_file(file_map, generator.config.moduleId!, out_file);
 	// eslint-disable-next-line no-console
 	console.log('Types written to', args['out-file'] ?? generator.config.outFile);
 }
