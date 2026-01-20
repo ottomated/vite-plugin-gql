@@ -9,7 +9,7 @@ import { DtsWatcher, load_schema } from './dts-watcher';
 import { relative } from 'node:path';
 import type { GlobalGenerator } from './bin';
 
-export interface PluginConfig {
+export type PluginConfig = {
 	/**
 	 * The place to import the gql tag from. Defaults to `$gql`.
 	 */
@@ -27,22 +27,38 @@ export interface PluginConfig {
 	 */
 	schemaOptions?: Omit<LoadSchemaOptions, 'loaders' | 'headers'>;
 	/**
-	 * The file to write the generated types to.
-	 * @example "src/gql.d.ts"
-	 */
-	outFile: string;
-	/**
 	 * A map of GraphQL scalar types to their typescript types
 	 * @example { ID: 'string' }
 	 */
 	customScalars?: Record<string, string>;
-	/**
-	 * Whether to automatically generate types whenever a file changes.
-	 * If disabled, types can be generated from the command line with the included `gql-typegen` script.
-	 * @default {true}
-	 */
-	automaticallyGenerateTypes?: boolean;
-}
+} & (
+	| {
+			/**
+			 * Whether to automatically generate types whenever a file changes.
+			 * If disabled, types can be generated from the command line with the included `gql-typegen` script.
+			 * @default {true}
+			 */
+			automaticallyGenerateTypes: false;
+			/**
+			 * The file to write the generated types to.
+			 * @example "src/gql.d.ts"
+			 */
+			outFile?: string;
+	  }
+	| {
+			/**
+			 * Whether to automatically generate types whenever a file changes.
+			 * If disabled, types can be generated from the command line with the included `gql-typegen` script.
+			 * @default {true}
+			 */
+			automaticallyGenerateTypes?: boolean;
+			/**
+			 * The file to write the generated types to.
+			 * @example "src/gql.d.ts"
+			 */
+			outFile: string;
+	  }
+);
 
 type Global = typeof globalThis & {
 	__gql_generator: GlobalGenerator;
@@ -80,6 +96,9 @@ export default function gql_tag_plugin(config: PluginConfig): Plugin {
 		config(_, env) {
 			is_build = env.command === 'build';
 			if (!is_build && config.automaticallyGenerateTypes) {
+				if (!config.outFile) {
+					throw this.error('@o7/vite-plugin-gql: outFile is required');
+				}
 				dts_watcher = new DtsWatcher(
 					config.moduleId!,
 					config.outFile,

@@ -81,12 +81,21 @@ Options:
 		console.error(
 			`Could not find vite config${args['vite-config'] ? ` at ${args['vite-config']}` : ''}.`,
 		);
+		process.exit(1);
 	}
 	const generator = (globalThis as Global).__gql_generator;
 	if (typeof generator === 'symbol') {
 		// eslint-disable-next-line no-console
 		console.error(
 			'Could not find the @o7/vite-plugin-gql plugin in your vite config.',
+		);
+		process.exit(1);
+	}
+	const out_file = args['out-file'] ?? generator.config.outFile;
+	if (!out_file) {
+		// eslint-disable-next-line no-console
+		console.error(
+			`--out-file is required when your vite config does not define \`outFile\`.`,
 		);
 		process.exit(1);
 	}

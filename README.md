@@ -57,6 +57,10 @@ const data = await gql(/* GraphQL */ `
 
 ## Changelog
 
+### 0.2.1
+
+- Make `outFile` optional when `automaticallyGenerateTypes` is false
+
 ### 0.2.0
 
 - Add `automaticallyGenerateTypes` options
