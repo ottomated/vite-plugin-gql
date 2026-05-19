@@ -1,2 +1,38 @@
 allowBuilds:
   esbuild: true
+minimumReleaseAgeExclude:
+  - '@oxc-parser/binding-android-arm-eabi@0.132.0'
+  - '@oxc-parser/binding-android-arm64@0.132.0'
+  - '@oxc-parser/binding-darwin-arm64@0.132.0'
+  - '@oxc-parser/binding-darwin-x64@0.132.0'
+  - '@oxc-parser/binding-freebsd-x64@0.132.0'
+  - '@oxc-parser/binding-linux-arm-gnueabihf@0.132.0'
+  - '@oxc-parser/binding-linux-arm-musleabihf@0.132.0'
+  - '@oxc-parser/binding-linux-arm64-gnu@0.132.0'
+  - '@oxc-parser/binding-linux-arm64-musl@0.132.0'
+  - '@oxc-parser/binding-linux-ppc64-gnu@0.132.0'
+  - '@oxc-parser/binding-linux-riscv64-gnu@0.132.0'
+  - '@oxc-parser/binding-linux-riscv64-musl@0.132.0'
+  - '@oxc-parser/binding-linux-s390x-gnu@0.132.0'
+  - '@oxc-parser/binding-linux-x64-gnu@0.132.0'
+  - '@oxc-parser/binding-linux-x64-musl@0.132.0'
+  - '@oxc-parser/binding-openharmony-arm64@0.132.0'
+  - '@oxc-parser/binding-wasm32-wasi@0.132.0'
+  - '@oxc-parser/binding-win32-arm64-msvc@0.132.0'
+  - '@oxc-parser/binding-win32-ia32-msvc@0.132.0'
+  - '@oxc-parser/binding-win32-x64-msvc@0.132.0'
+  - '@oxc-project/types@0.132.0'
+  - '@types/node@25.9.0'
+  - '@typescript-eslint/eslint-plugin@8.59.4'
+  - '@typescript-eslint/parser@8.59.4'
+  - '@typescript-eslint/project-service@8.59.4'
+  - '@typescript-eslint/scope-manager@8.59.4'
+  - '@typescript-eslint/tsconfig-utils@8.59.4'
+  - '@typescript-eslint/type-utils@8.59.4'
+  - '@typescript-eslint/types@8.59.4'
+  - '@typescript-eslint/typescript-estree@8.59.4'
+  - '@typescript-eslint/utils@8.59.4'
+  - '@typescript-eslint/visitor-keys@8.59.4'
+  - oxc-parser@0.132.0
+  - tsx@4.22.2
+  - typescript-eslint@8.59.4
