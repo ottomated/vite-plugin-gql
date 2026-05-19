@@ -1,8 +1,5 @@
 name: Release
 
-permissions:
-  contents: write
-
 on:
   push:
     tags:
@@ -11,6 +8,9 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
     steps:
       - name: Install Node
         uses: actions/setup-node@v6
