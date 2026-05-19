@@ -10,13 +10,12 @@ import { join } from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { find_import, walk_ast } from './ast';
 import { parseSync, type Program } from 'oxc-parser';
-import type { ProgramNode } from 'rollup';
 
 export type GlobalGenerator = {
 	files: Map<
 		string,
 		{
-			ast: Program | ProgramNode;
+			ast: Program;
 			import_name: string;
 		}
 	>;

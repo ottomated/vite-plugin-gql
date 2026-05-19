@@ -4,12 +4,12 @@ import { format } from 'prettier';
 import { SCALAR_TYPES, type TypescriptDetails } from './codegen';
 import { FSWatcher } from 'chokidar';
 import { isScalarType, type GraphQLSchema } from 'graphql';
-import type { ProgramNode } from 'rollup';
 import { find_import, walk_ast } from './ast';
-import { parseAst } from 'vite';
+import { parseSync } from 'vite';
 import type { PluginConfig } from '.';
 import { loadSchema } from '@graphql-tools/load';
 import { UrlLoader } from '@graphql-tools/url-loader';
+import type { Program } from 'oxc-parser';
 
 export type TypeMap = {
 	[query: string]: TypescriptDetails | { error: string };
@@ -79,9 +79,9 @@ export class DtsWatcher {
 			this.#watcher.unwatch(path);
 			return;
 		}
-		let ast: ProgramNode;
+		let ast: Program;
 		try {
-			ast = parseAst(code);
+			ast = parseSync(path, code).program;
 		} catch (_) {
 			return;
 		}

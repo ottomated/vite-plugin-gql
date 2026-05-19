@@ -57,6 +57,10 @@ const data = await gql(/* GraphQL */ `
 
 ## Changelog
 
+### 0.3.0
+
+- Update to Vite 8
+
 ### 0.2.1
 
 - Make `outFile` optional when `automaticallyGenerateTypes` is false

@@ -1,13 +1,14 @@
 import type { Plugin } from 'vite';
 import module from './module.js?raw';
-import type { ProgramNode } from 'rollup';
 import { find_import, walk_ast } from './ast';
 import MagicString from 'magic-string';
-import { type LoadSchemaOptions } from '@graphql-tools/load';
+import type { LoadSchemaOptions } from '@graphql-tools/load';
 import { GraphQLSchema } from 'graphql';
 import { DtsWatcher, load_schema } from './dts-watcher';
 import { relative } from 'node:path';
 import type { GlobalGenerator } from './bin';
+import type { Program } from 'oxc-parser';
+import { exactRegex } from '@rolldown/pluginutils';
 
 export type PluginConfig = {
 	/**
@@ -110,20 +111,26 @@ export default function gql_tag_plugin(config: PluginConfig): Plugin {
 		buildStart() {
 			load_schema(config, this.warn).then(resolve_schema);
 		},
-		resolveId(id) {
-			if (id === config.moduleId) {
+		resolveId: {
+			filter: {
+				id: exactRegex(config.moduleId),
+			},
+			handler() {
 				return '\0' + config.moduleId;
-			}
+			},
 		},
-		load(id) {
-			if (id === '\0' + config.moduleId) {
+		load: {
+			filter: {
+				id: exactRegex('\0' + config.moduleId),
+			},
+			handler() {
 				return module
 					.replace('GQL_URL', JSON.stringify(config.url))
 					.replace('GQL_HEADERS', JSON.stringify(config.headers));
-			}
+			},
 		},
 		async transform(code, id) {
-			let ast: ProgramNode;
+			let ast: Program;
 			try {
 				ast = this.parse(code);
 			} catch (_) {
