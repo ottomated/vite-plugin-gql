@@ -8,7 +8,15 @@ export default defineConfig({
 	target: 'node20.18',
 	clean: true,
 	dts: true,
-	external: ['node:fs/promises', 'node:os', 'node:util', 'rollup', 'node:path'],
+	deps: {
+		neverBundle: [
+			'node:fs/promises',
+			'node:os',
+			'node:util',
+			'rollup',
+			'node:path',
+		],
+	},
 	platform: 'neutral',
 	plugins: [
 		{

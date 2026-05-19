@@ -5,11 +5,11 @@ import {
 	type GraphQLSchema,
 } from 'graphql';
 import type MagicString from 'magic-string';
-import type { ProgramNode, TransformPluginContext } from 'rollup';
 import { walk } from 'zimmerframe';
 import type { TypeMap } from './dts-watcher';
 import { generate_typescript, location_to_index } from './codegen';
 import type { Program } from 'oxc-parser';
+import type { TransformPluginContext } from 'rolldown';
 
 export function find_import(
 	ast: Node | Program,
@@ -45,7 +45,7 @@ export function walk_ast(
 		throw_gql_errors,
 		magic_string,
 	}: {
-		ast: ProgramNode | Program;
+		ast: Program;
 		import_name: string;
 		schema: GraphQLSchema;
 		custom_scalars: Record<string, string> | undefined;
