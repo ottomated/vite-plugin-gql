@@ -57,6 +57,10 @@ const data = await gql(/* GraphQL */ `
 
 ## Changelog
 
+### 0.3.1
+
+- Add npm description
+
 ### 0.3.0
 
 - Update to Vite 8

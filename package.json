@@ -1,6 +1,7 @@
 {
 	"name": "@o7/vite-plugin-gql",
-	"version": "0.3.0",
+	"version": "0.3.1",
+	"description": "Lightest-weight type-safe GraphQL queries",
 	"type": "module",
 	"license": "MIT",
 	"files": [
